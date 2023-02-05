@@ -1,0 +1,77 @@
+[tool.poetry]
+name = "transformer-nlp"
+version = "0.1.0"
+description = "Implementation of the transformer architecture for language modeling"
+authors = ["Felix Haba <felixh@u.northwestern.edu>"]
+readme = "README.md"
+packages = [{include = "transformer_nlp"}]
+
+[tool.poetry.dependencies]
+python = "~3.8.1"
+torch = "^1.13.1"
+pip = "^23.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+isort = "^5.12.0"
+flake8 = "^6.0.0"
+mypy = "^0.991"
+jupyterlab = "^3.6.1"
+pytest = "^7.2.1"
+ipykernel = "^6.21.1"
+ipython = "^8.9.0"
+pre-commit = "^3.0.4"
+
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+
+[flake8]
+max-line-length = 88
+max-complexity = 18
+select = B,C,E,F,W,T4,B9
+ignore = E203, E266, E501, W503, F403, F401
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+# 3rd party import
+ignore_missing_imports = true
+# dynamic typing
+disallow_any_unimported = true
+disallow_any_expr = false
+disallow_any_decorated = false
+disallow_any_explicit = true
+disallow_any_generics = false
+disallow_subclassing_any = true
+# platform
+python_version = "3.8"
+# untyped
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+# None and Optional
+no_implicit_optional = true
+# Warnings
+warn_return_any = false
+warn_unreachable = true
+# Misc
+pretty = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
