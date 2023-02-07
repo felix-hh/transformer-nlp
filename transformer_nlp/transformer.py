@@ -15,6 +15,7 @@ eval_iters = 200
 n_embd = 32
 n_heads = 4
 n_blocks = 6
+dropout = .1
 # -----------
 
 torch.manual_seed(1337)
@@ -79,6 +80,7 @@ class Head(nn.Module):
         self.value = nn.Linear(n_embd, head_size, bias=False)
         self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
         self.head_size = head_size
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor):
         B, T, C = x.shape
@@ -88,6 +90,7 @@ class Head(nn.Module):
         )  # (B T T)
         affinities = affinities.masked_fill(self.tril[:T, :T] == 0, -torch.inf)
         weights = torch.softmax(affinities, dim=-1)
+        weights = self.dropout(weights)
         out = weights @ v
         return out  # (B T H)
 
@@ -97,10 +100,13 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size=head_size) for _ in range(n_heads)])
         self.proj = nn.Linear(n_embd, n_embd)
+        self.dropout = nn.Dropout(dropout)
+
 
     def forward(self, x):
         x = torch.cat([h(x) for h in self.heads], dim=-1)
         x = self.proj(x)
+        x = self.dropout(x)
         return x
 
 
@@ -109,10 +115,12 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(nn.Linear(n_embd, n_embd * 4), nn.ReLU())
         self.proj = nn.Linear(n_embd * 4, n_embd)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         x = self.net(x)
         x = self.proj(x)
+        x = self.dropout(x)
         return x
 
 
