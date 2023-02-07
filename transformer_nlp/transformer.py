@@ -5,17 +5,17 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32  # how many independent sequences will we process in parallel?
-block_size = 8  # what is the maximum context length for predictions?
+batch_size = 64  # how many independent sequences will we process in parallel?
+block_size = 256  # what is the maximum context length for predictions?
 max_iters = 5000
 eval_interval = 500
-learning_rate = 1e-3
+learning_rate = 3e-4
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
-n_embd = 32
-n_heads = 4
+n_embd = 384
+n_heads = 6
 n_blocks = 6
-dropout = .1
+dropout = 0.2
 # -----------
 
 torch.manual_seed(1337)
@@ -224,4 +224,9 @@ for iter in range(max_iters):
 
 # generate from the model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
+out = decode(m.generate(context, max_new_tokens=5000)[0].tolist())
+with open('out.txt', 'w') as f:
+    f.write(out)
+print(out)
+
+torch.save(m.state_dict(), 'final_weights.pt')
