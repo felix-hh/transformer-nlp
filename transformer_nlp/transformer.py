@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -82,7 +83,9 @@ class Head(nn.Module):
     def forward(self, x: torch.Tensor):
         B, T, C = x.shape
         q, k, v = self.query(x), self.key(x), self.value(x)
-        affinities: torch.Tensor = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_size)  # (B T T)
+        affinities: torch.Tensor = (q @ k.transpose(-2, -1)) / math.sqrt(
+            self.head_size
+        )  # (B T T)
         affinities = affinities.masked_fill(self.tril[:T, :T] == 0, -torch.inf)
         weights = torch.softmax(affinities, dim=-1)
         out = weights @ v
@@ -100,19 +103,18 @@ class MultiHeadAttention(nn.Module):
         x = self.proj(x)
         return x
 
+
 class FeedForward(nn.Module):
     def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(n_embd, n_embd*4),
-            nn.ReLU()
-        )
-        self.proj = nn.Linear(n_embd*4, n_embd)
+        self.net = nn.Sequential(nn.Linear(n_embd, n_embd * 4), nn.ReLU())
+        self.proj = nn.Linear(n_embd * 4, n_embd)
 
     def forward(self, x):
         x = self.net(x)
         x = self.proj(x)
         return x
+
 
 class Block(nn.Module):
     def __init__(self, n_heads, head_size):
@@ -121,11 +123,12 @@ class Block(nn.Module):
         self.ffwd = FeedForward()
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.mha(self.ln1(x))
         x = x + self.ffwd(self.ln2(x))
         return x
+
 
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
@@ -138,7 +141,9 @@ class BigramLanguageModel(nn.Module):
         # self.sa_head = Head(n_embd)
         # self.mha = MultiHeadAttention(n_heads=4, head_size=n_embd // 4)
         # self.ffwd = FeedForward()
-        self.blocks = nn.Sequential(*[Block(n_heads, n_embd//n_heads) for _ in range(n_blocks)])
+        self.blocks = nn.Sequential(
+            *[Block(n_heads, n_embd // n_heads) for _ in range(n_blocks)]
+        )
         self.ln3 = nn.LayerNorm(n_embd)
 
         self.lm_head = nn.Linear(n_embd, vocab_size)
@@ -147,11 +152,11 @@ class BigramLanguageModel(nn.Module):
         # idx and targets are both (B,T) tensor of integers
         logits = self.token_embedding_table(idx)  # (B,T,C)
         B, T, C = logits.shape
-        pos = torch.arange(T, device=device) # (T)
+        pos = torch.arange(T, device=device)  # (T)
         pos = self.position_embedding_table(pos)
-        # convert pos to (B, T, 1) and add to logits. turns out this is automatically handled. 
+        # convert pos to (B, T, 1) and add to logits. turns out this is automatically handled.
         logits += pos
-        
+
         # logits = self.mha(logits)
         # logits = self.mha(logits)
         # logits = self.ffwd(logits)
@@ -172,7 +177,7 @@ class BigramLanguageModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
-            idx_cond = idx[:,-block_size:]
+            idx_cond = idx[:, -block_size:]
             # get the predictions
             logits, loss = self(idx_cond)
             # focus only on the last time step

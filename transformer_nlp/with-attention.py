@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -80,7 +81,9 @@ class Head(nn.Module):
     def forward(self, x: torch.Tensor):
         B, T, C = x.shape
         q, k, v = self.query(x), self.key(x), self.value(x)
-        affinities: torch.Tensor = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_size)  # (B T T)
+        affinities: torch.Tensor = (q @ k.transpose(-2, -1)) / math.sqrt(
+            self.head_size
+        )  # (B T T)
         affinities = affinities.masked_fill(self.tril[:T, :T] == 0, -torch.inf)
         weights = torch.softmax(affinities, dim=-1)
         out = weights @ v
@@ -95,16 +98,15 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x):
         return torch.cat([h(x) for h in self.heads], dim=-1)
 
+
 class FeedForward(nn.Module):
     def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(n_embd, n_embd),
-            nn.ReLU()
-        )
+        self.net = nn.Sequential(nn.Linear(n_embd, n_embd), nn.ReLU())
 
     def forward(self, x):
         return self.net(x)
+
 
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
@@ -123,11 +125,11 @@ class BigramLanguageModel(nn.Module):
         # idx and targets are both (B,T) tensor of integers
         logits = self.token_embedding_table(idx)  # (B,T,C)
         B, T, C = logits.shape
-        pos = torch.arange(T, device=device) # (T)
+        pos = torch.arange(T, device=device)  # (T)
         pos = self.position_embedding_table(pos)
-        # convert pos to (B, T, 1) and add to logits. turns out this is automatically handled. 
+        # convert pos to (B, T, 1) and add to logits. turns out this is automatically handled.
         logits += pos
-        
+
         # logits = self.mha(logits)
         logits = self.mha(logits)
         logits = self.ffwd(logits)
@@ -146,7 +148,7 @@ class BigramLanguageModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
-            idx_cond = idx[:,-block_size:]
+            idx_cond = idx[:, -block_size:]
             # get the predictions
             logits, loss = self(idx_cond)
             # focus only on the last time step
