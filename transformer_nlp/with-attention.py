@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -7,9 +8,10 @@ batch_size = 32  # how many independent sequences will we process in parallel?
 block_size = 8  # what is the maximum context length for predictions?
 max_iters = 5000
 eval_interval = 500
-learning_rate = 1e-2
+learning_rate = 1e-3
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
+n_embd = 32
 # ------------
 
 torch.manual_seed(1337)
@@ -64,17 +66,72 @@ def estimate_loss():
     return out
 
 
+class Head(nn.Module):
+    """Head of self attention"""
+
+    def __init__(self, head_size: int):
+        super().__init__()
+        self.query = nn.Linear(n_embd, head_size, bias=False)
+        self.key = nn.Linear(n_embd, head_size, bias=False)
+        self.value = nn.Linear(n_embd, head_size, bias=False)
+        self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
+        self.head_size = head_size
+
+    def forward(self, x: torch.Tensor):
+        B, T, C = x.shape
+        q, k, v = self.query(x), self.key(x), self.value(x)
+        affinities: torch.Tensor = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_size)  # (B T T)
+        affinities = affinities.masked_fill(self.tril[:T, :T] == 0, -torch.inf)
+        weights = torch.softmax(affinities, dim=-1)
+        out = weights @ v
+        return out  # (B T H)
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, n_heads, head_size):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size=head_size) for _ in range(n_heads)])
+
+    def forward(self, x):
+        return torch.cat([h(x) for h in self.heads], dim=-1)
+
+class FeedForward(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embd, n_embd),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self):
         super().__init__()
         # each token directly reads off the logits for the next token from a
         # lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        # self.sa_head = Head(n_embd)
+        self.mha = MultiHeadAttention(n_heads=4, head_size=n_embd // 4)
+        self.ffwd = FeedForward()
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx: torch.Tensor, targets=None):
         # idx and targets are both (B,T) tensor of integers
         logits = self.token_embedding_table(idx)  # (B,T,C)
+        B, T, C = logits.shape
+        pos = torch.arange(T, device=device) # (T)
+        pos = self.position_embedding_table(pos)
+        # convert pos to (B, T, 1) and add to logits. turns out this is automatically handled. 
+        logits += pos
+        
+        # logits = self.mha(logits)
+        logits = self.mha(logits)
+        logits = self.ffwd(logits)
+        logits = self.lm_head(logits)
 
         if targets is None:
             loss = None
@@ -89,8 +146,9 @@ class BigramLanguageModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
+            idx_cond = idx[:,-block_size:]
             # get the predictions
-            logits, loss = self(idx)
+            logits, loss = self(idx_cond)
             # focus only on the last time step
             logits = logits[:, -1, :]  # becomes (B, C)
             # apply softmax to get probabilities
@@ -102,11 +160,11 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
-model = BigramLanguageModel(vocab_size)
+model = BigramLanguageModel()
 m = model.to(device)
 
 # create a PyTorch optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.AdamW(m.parameters(), lr=learning_rate)
 
 for iter in range(max_iters):
     # every once in a while evaluate the loss on train and val sets
@@ -120,7 +178,7 @@ for iter in range(max_iters):
     xb, yb = get_batch("train")
 
     # evaluate the loss
-    logits, loss = model(xb, yb)
+    logits, loss = m(xb, yb)
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
     optimizer.step()
