@@ -8,7 +8,7 @@ The goal of this repo is to reimplement the transformer. A few useful resources:
 This is a character-level transformer based mostly in the last resource above. To use it you need to:
 - install poetry
 - clone this repository
-- install the dependencies
+- install the dependencies with `poetry install`
 - run `poetry run python transformer_nlp/bigram.py` from the root directory. 
 
 
